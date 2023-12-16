@@ -1,0 +1,190 @@
+<html>
+	<head>
+		<title>Maurizio Favaro-1st Project 2019</title>
+		<style>
+
+		body {
+			font-family: Monospace;
+			background-color: #000000;
+			margin: 0px;
+			overflow: hidden;
+		}
+
+		canvas {
+			width: 100%;
+			height: 100%;
+		}
+
+	</style>
+		<script src="lib/three.min.js"></script>
+		<script src="lib/stats.min.js"></script>
+		<script src="lib/OrbitControls.js"></script>
+		<script src="parts/hull.js"></script>
+		<script src="parts/deck.js"></script>
+		<script src="parts/funnel.js"></script>
+		<script src="parts/bow.js"></script>
+		<script src="parts/stern.js"></script>
+		<script src="parts/terrain.js"></script>
+	</head>
+	<body>
+
+		<script>
+
+		var scene, camera, renderer, controls, stats;
+
+		function Start() {
+			scene = new THREE.Scene();
+			camera = new THREE.PerspectiveCamera( 75, window.innerWidth / window.innerHeight, 0.1, 1000 );
+
+			renderer = new THREE.WebGLRenderer( {antialias: true} );
+			renderer.setSize( window.innerWidth, window.innerHeight );
+			renderer.setClearColor( 0xf0f0f0 );
+			document.body.appendChild( renderer.domElement );
+
+			camera.position.set(0, 5, 25);
+
+			//cielo
+			var skyTexture = new THREE.TextureLoader().load( "textures/sky.jpg" );
+			scene.background = skyTexture;
+
+			//terrain
+			var img = new Image();
+			img.onload = function () {
+
+				//get height data from img
+				data = getHeightData(img,0.1);
+
+				//creazione terrain
+				var terrain = new Terrain(data, img);
+				var t = terrain.getTerrain();
+				t.position.set(-img.width/2, 0, -img.height/2);
+				scene.add(t);
+			}
+			// load img source
+			img.src = "textures/heightmap.png";
+
+			//nave
+			titanic = new THREE.Object3D();
+
+			//scafo
+			var hull = new Hull();
+			var h = hull.getHull();
+			h.position.set(-0.5, 0, 0);
+			titanic.add(h);
+
+			//ponte
+			var deck = new Deck();
+			var d = deck.getDeck();
+			d.position.set(-1, 5, 0);
+			titanic.add(d);
+
+			//fumaioli
+			var funnel = new Funnel();
+			var f1 = funnel.getFunnel();
+			f1.position.set(-11.5, 9, -0.5);
+			titanic.add(f1);
+
+			var f2 = f1.clone();
+			f2.position.set(-3.5, 9, -0.5);
+			titanic.add(f2);
+
+			var f3 = f1.clone();
+			f3.position.set(4.5, 9, -0.5);
+			titanic.add(f3);
+
+			var f4 = f1.clone();
+			f4.position.set(12.5, 9, -0.5);
+			titanic.add(f4);
+
+			//prua
+			var bow = new Bow();
+			var b = bow.getBow();
+			b.position.set(25.5, 1, 0);
+			titanic.add(b);
+
+			//poppa
+			var stern = new Stern();
+			var s = stern.getStern();
+			s.position.set(-26, 1, 0);
+			titanic.add(s);
+
+			//riduzione e posizionamento della nave
+			titanic.scale.set(0.5, 0.5, 0.5);
+			titanic.position.set(-20, 0, -25);
+			titanic.rotation.y = -70 * Math.PI/180;
+			scene.add( titanic );
+
+			camera.lookAt( new THREE.Vector3(titanic.position.x, titanic.position.y, titanic.position.z));
+
+			//ground
+			var groundGeometry = new THREE.PlaneBufferGeometry( 10000, 10000 );
+			var groundMaterial = new THREE.MeshBasicMaterial( { color: 0x000000 } );
+			var ground = new THREE.Mesh( groundGeometry, groundMaterial );
+			ground.position.y = 0.30;
+			ground.rotation.x = -Math.PI/2;
+			scene.add( ground );
+
+			//nebbia per simulare buio
+			fogColor = new THREE.Color(0x000000);
+			scene.fog = new THREE.Fog(fogColor, 0.0025, 75);
+
+			stats = new Stats();
+			stats.domElement.style.position = 'absolute';
+			stats.domElement.style.top = '0px';
+			document.body.appendChild( stats.domElement );
+
+			controls = new THREE.OrbitControls( camera );
+			//blocco della camera per impedire di andare sotto il livello del mare
+			controls.maxPolarAngle = 85 * Math.PI/180;
+			controls.addEventListener( 'change', Render );
+		}
+
+		function Update() {
+			//setTimeout( function() { //riduzione fps
+			requestAnimationFrame( Update );
+			controls.update();
+			stats.update()
+			//la camera segue il Titanic per tutta la scena
+			camera.lookAt(new THREE.Vector3(titanic.position.x, titanic.position.y, titanic.position.z));
+			//animazioni
+			delta = time.getDelta();
+			if (titanic.rotation.y < -45 * Math.PI/180){
+				titanic.position.x += delta * (40/9) * Math.cos(-titanic.rotation.y);
+				titanic.position.z += delta * (40/9) * Math.sin(-titanic.rotation.y);
+				titanic.rotation.y += delta * (45/9) * Math.PI/180;
+			} else if (titanic.position.z < 12) {
+				titanic.position.x += delta * (40/9) * Math.cos(-titanic.rotation.y) - dec;
+				titanic.position.z += delta * (40/9) * Math.sin(-titanic.rotation.y) - dec;
+				titanic.position.y -= delta * (0.5/5.5);
+				dec += 0.004 * delta;
+			} else if (titanic.rotation.x < 10 * Math.PI/180){
+				titanic.rotation.x += delta * (10/6) * Math.PI/180;
+				titanic.position.y -= delta * (0.5/5.5);
+			} else if (titanic.rotation.x < 30 * Math.PI/180){
+				titanic.rotation.x += delta * (30/9) * Math.PI/180;
+			} else if (titanic.position.y > - 10) {
+				titanic.position.x += delta * (20/9) * Math.cos(-titanic.rotation.y);
+				titanic.position.z += delta * (20/9) * Math.sin(-titanic.rotation.y);
+				titanic.position.y -= delta * (20/9) * Math.sin(titanic.rotation.x);
+			} else {
+				titanic.position.set(-20, 0, -25);
+				titanic.rotation.set(0, -70 * Math.PI/180, 0);
+				dec = 0;
+			}
+		//}, 1000/20); //riduzione fps
+			Render();
+		}
+
+		function Render() {
+
+			renderer.render(scene, camera);
+		}
+
+		Start();
+		var dec = 0; //variabile usata per implementare la decelerazione della nave
+		var time = new THREE.Clock();
+		Update();
+
+		</script>
+	</body>
+</html>
